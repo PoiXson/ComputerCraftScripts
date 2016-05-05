@@ -1,4 +1,7 @@
 
+local ReactorSide = "back"
+local MonitorName = "monitor_1"
+
 local targetRods = 50
 local startRods  = 1
 local rodStep    = 1
@@ -7,10 +10,10 @@ local rollingRange = 100
 local refreshDelay = 3
 
 
-local reactor = peripheral.wrap("back")
+local reactor = peripheral.wrap(ReactorSide)
 reactor.setAllControlRodLevels(100 - startRods)
 
-local monitor = peripheral.wrap("monitor_0")
+local monitor = peripheral.wrap(MonitorName)
 if monitor ~= nil then
   monitor.setTextScale(2)
 end
