@@ -32,7 +32,7 @@ if text ~= "" then
   out.write(text)
   out.close()
   print("Successful!")
-  os.sleep(2)
+  os.sleep(1)
 else
   print("Failed to download")
   os.sleep(5)
