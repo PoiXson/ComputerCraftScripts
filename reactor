@@ -15,6 +15,13 @@ reactor.setAllControlRodLevels(100 - startRods)
 local monitor = peripheral.wrap(MonitorName)
 
 
+-- write startup file
+local h = fs.open("/startup", "w")
+h.writeLine("shell.run(\"dl run reactor\")")
+h.flush()
+h.close()
+
+
 -- delayed startup
 if monitor ~= nil then
   monitor.setTextScale(2)
