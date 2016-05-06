@@ -63,90 +63,155 @@ local rollingRod    = 0.01
 local rollingSize   = 0;
 local turboMode     = 0
 while true do
-  monitor.clear()
+  if monitor ~= nil then
+    monitor.clear()
+  end
+  term.clear()
 
-  monitor.setCursorPos(1, 1)
-  monitor.write("Fuel Temp: "..
-    tostring( math.floor(reactor.getFuelTemperature() * 10) / 10)
-    .."   "
-  )
-
-  monitor.setCursorPos(1, 2)
-  monitor.write("Case Temp: "..
-    tostring( math.floor(reactor.getCasingTemperature() * 10) / 10)
-    .."   "
-  )
-
-  monitor.setCursorPos(18, 2)
-  monitor.write(
-    tostring( math.floor( (reactor.getFuelTemperature() - reactor.getCasingTemperature()) * 10) / 10)
-    .."   "
-  )
-
-  monitor.setCursorPos(1, 3)
-  monitor.write("RF/Tick:   "..
-    tostring( math.floor(reactor.getEnergyProducedLastTick() / 10) / 100 )
-    .."K   "
-  )
-
-  monitor.setCursorPos(1, 4)
-  monitor.write("Fuel/Tick: "..
-    tostring( math.floor(reactor.getFuelConsumedLastTick() * 100) / 100 )
-    .."   "
-  )
-
-  monitor.setCursorPos(1, 5)
-  monitor.write("Energy:    "..
-    reactor.getEnergyStored()
-    .."   "
-  )
-
-  monitor.setCursorPos(1, 6)
-  local percentFull = math.floor(reactor.getEnergyStored() / 10000000 * 10000) / 100
-  local currentRod  = 100 - reactor.getControlRodLevel(1)
-  if percentLast == nil then
-    monitor.write("           ")
+  -- monitor state
+  term.setCursorPos(25, 2)
+  if monitor ~= nil then
+    term.write("Monitor Connected")
   else
-    -- charge is rising
+    term.write("No Monitor")
+  end
+
+  -- fuel/case temp
+  local fuelTemp = math.floor(reactor.getFuelTemperature()   * 10) / 10
+  local caseTemp = math.floor(reactor.getCasingTemperature() * 10) / 10
+  local tempDiff = math.floor( (reactor.getFuelTemperature() - reactor.getCasingTemperature()) * 10) / 10
+  local fuelTempStr = "Fuel Temp: "..tostring(fuelTemp).."   "
+  local caseTempStr = "Case Temp: "..tostring(caseTemp).."   "
+  local tempDiffStr = tostring(tempDiff).."   "
+  if monitor ~= nil then
+    monitor.setCursorPos(1, 1)
+    monitor.write(fuelTempStr)
+    monitor.setCursorPos(1, 2)
+    monitor.write(caseTempStr)
+    monitor.setCursorPos(18, 2)
+    monitor.write(tempDiffStr)
+  end
+  term.setCursorPos(1, 1)
+  term.write(fuelTempStr)
+  term.setCursorPos(1, 2)
+  term.write(caseTempStr)
+  term.setCursorPos(18, 2)
+
+  -- rf/fuel per tick
+  local rfTick = math.floor(reactor.getEnergyProducedLastTick() / 10) / 100
+  local fuelTick = math.floor(reactor.getFuelConsumedLastTick() * 100) / 100
+  local rfTickStr = "RF/Tick:   "..tostring(rfTick).."K   "
+  local fuelTickStr = "Fuel/Tick: "..tostring(fuelTick).."   "
+  if monitor ~= nil then
+    monitor.setCursorPos(1, 3)
+    monitor.write(rfTickStr)
+    monitor.setCursorPos(1, 4)
+    monitor.write(fuelTickStr)
+  end
+  term.setCursorPos(1, 3)
+  term.write(rfTickStr)
+  term.setCursorPos(1, 4)
+  term.write(fuelTickStr)
+
+  -- energy/rods
+  local energy         = reactor.getEnergyStored()
+  local percentFull    = math.floor(reactor.getEnergyStored() / 10000000 * 10000) / 100
+  local energyStr      = "Energy:    "..tostring(energy).."   "
+  local currentRod     = 100 - reactor.getControlRodLevel(1)
+  if monitor ~= nil then
+    monitor.setCursorPos(1, 5)
+    monitor.write(energyStr)
+    monitor.setCursorPos(1, 6)
+  end
+  term.setCursorPos(1, 5)
+  term.write(energyStr)
+  term.setCursorPos(1, 6)
+  -- first cycle
+  if percentLast == nil then
+    if monitor ~= nil then
+      monitor.write("           ")
+    end
+    term.write("           ")
+  else
+    -- ^  charge is rising
     if percentFull > percentLast then
-      monitor.write("         ^ ")
-      if percentFull >= targetRods then
-        -- turbo break if more than 1.3 times beyond target
-        if percentFull >= (targetRods / 3) + targetRods then
-          currentRod = currentRod - rodStepTurbo
-        -- normal break
-        else
-          currentRod = currentRod - rodStep
+      if turboMode > 0 then
+        currentRod = currentRod - rodStepTurbo
+        turboMode = turboMode - 1
+        if monitor ~= nil then
+          monitor.write("       ^ ^ ")
         end
-        -- keep in range
-        if currentRod < 0 then currentRod = 0 end
+        term.write("       ^ ^ ")
+      else
+        if percentFull >= targetRods then
+          -- turbo break if more than 33% beyond target
+          if percentFull >= (targetRods / 3) + targetRods then
+            currentRod = currentRod - rodStepTurbo
+            if monitor ~= nil then
+              monitor.write("       ^^^ ")
+            end
+            term.write("       ^^^ ")
+          -- normal break
+          else
+            currentRod = currentRod - rodStep
+            if monitor ~= nil then
+              monitor.write("         ^ ")
+            end
+            term.write("         ^ ")
+          end
+        else
+          if monitor ~= nil then
+            monitor.write("         ^ ")
+          end
+          term.write("         ^ ")
+        end
       end
-    -- charge is dropping
+    -- v  charge is dropping
     elseif percentFull < percentLast then
-      monitor.write("         v ")
       if percentFull < targetRods then
         -- turbo boost if less than half of target
         if percentFull <= (targetRods / 2) then
           currentRod = currentRod + rodStepTurbo
+          turboMode = turboMode + 1
+          if monitor ~= nil then
+            monitor.write("       vvv ")
+          end
+          term.write("       vvv ")
         -- normal boost
         else
           currentRod = currentRod + rodStep
+          if monitor ~= nil then
+            monitor.write("         v ")
+          end
+          term.write("         v ")
         end
-        -- keep in range
-        if currentRod > 100 then currentRod = 100 end
+      else
+        if monitor ~= nil then
+          monitor.write("         v ")
+        end
+        term.write("         v ")
       end
-    -- charge is stable
+    -- ~  charge is stable
     else
       if percentFull >= 99 then
         currentRod = 0
-        monitor.write("      FULL ")
+        if monitor ~= nil then
+          monitor.write("      FULL ")
+        end
+        term.write("      FULL ")
       elseif percentFull <= 1 then
 --        currentRod = 5
         currentRod = currentRod + rodStepTurbo
         turboMode = turboMode + 1
-        monitor.write("     EMPTY ")
+        if monitor ~= nil then
+          monitor.write("     EMPTY ")
+        end
+        term.write("     EMPTY ")
       else
-        monitor.write("           ")
+        if monitor ~= nil then
+          monitor.write("         ~ ")
+        end
+        term.write("         ~ ")
       end
     end
     reactor.setAllControlRodLevels(100 - currentRod)
@@ -170,51 +235,75 @@ while true do
       rollingCharge = rollingCharge / (rollingSize + 1)
     end
   end
-  monitor.write(tostring(percentFull).."%   ")
-  monitor.setCursorPos(20, 6)
-  monitor.write(tostring( (math.floor(rollingCharge * 100) / 100 ).."% avg  " ))
+
+  -- energy/rods percent
   percentLast = percentFull
-
-  monitor.setCursorPos(1, 7)
-  monitor.write("Control:   "..tostring(currentRod).."%   ")
-  monitor.setCursorPos(20, 7)
-  monitor.write(tostring( (math.floor(rollingRod * 100) / 100 ).."% avg  " ))
-
-
-  monitor.setTextColor(colors.black)
-  local width, height = monitor.getSize()
-  for i = 0, height do
-    -- control rods
-    monitor.setCursorPos(width - 3, i)
-    local p = 100 - (i / height * 100)
-    if currentRod > p then
-      monitor.setTextColor(colors.black)
-      monitor.setBackgroundColor(colors.yellow)
-      monitor.write("|")
-    elseif currentRod > math.floor(p) then
-      monitor.setTextColor(colors.yellow)
-      monitor.setBackgroundColor(colors.black)
-      monitor.write("=")
-    else
-      monitor.setTextColor(colors.black)
-      monitor.setBackgroundColor(colors.black)
-      monitor.write(" ")
+  percentFullAvg    = math.floor(rollingCharge * 100) / 100
+  percentRodsAvg    = math.floor(rollingRod * 100) / 100
+  if percentFull ~= nil then
+    percentFullStr    = tostring(percentFull).."%   "
+  else
+    percentFullStr    = "0%   "
+  end
+  percentFullAvgStr = tostring(percentFullAvg).."% avg  "
+  percentRodsStr    = "Control:   "..tostring(currentRod).."%   "
+  percentRodsAvgStr = tostring(percentRodsAvg).."% avg  "
+  if monitor ~= nil then
+    monitor.write(percentFullStr)
+    monitor.setCursorPos(20, 6)
+    monitor.write(percentFullAvgStr)
+    monitor.setCursorPos(1, 7)
+    monitor.write(percentRodsStr)
+    monitor.setCursorPos(20, 7)
+    monitor.write(perventRodsAvgStr)
+  end
+  term.write(percentFullStr)
+  term.setCursorPos(20, 6)
+  term.write(percentFullAvgStr)
+  term.setCursorPos(1, 7)
+  term.write(percentRodsStr)
+  term.setCursorPos(20, 7)
+  term.write(perventRodsAvgStr)
+  if monitor ~= nil then
+    monitor.setTextColor(colors.black)
+    local width, height = monitor.getSize()
+    for i = 0, height do
+      -- control rods
+      monitor.setCursorPos(width - 3, i)
+      local p = 100 - (i / height * 100)
+      if currentRod > p then
+        monitor.setTextColor(colors.black)
+        monitor.setBackgroundColor(colors.yellow)
+        monitor.write("|")
+      elseif currentRod > math.floor(p) then
+        monitor.setTextColor(colors.yellow)
+        monitor.setBackgroundColor(colors.black)
+        monitor.write("=")
+      else
+        monitor.setTextColor(colors.black)
+        monitor.setBackgroundColor(colors.black)
+        monitor.write(" ")
+      end
+      -- stored energy
+      monitor.setCursorPos(width - 1, i)
+      local p = 100 - (i / height * 100)
+      if percentFull > p then
+        monitor.setTextColor(colors.black)
+        monitor.setBackgroundColor(colors.red)
+        monitor.write("|")
+      elseif percentFull > math.floor(p) then
+        monitor.setTextColor(colors.red)
+        monitor.setBackgroundColor(colors.black)
+        monitor.write("=")
+      else
+        monitor.setTextColor(colors.black)
+        monitor.setBackgroundColor(colors.black)
+        monitor.write(" ")
+      end
     end
-    -- stored energy
-    monitor.setCursorPos(width - 1, i)
-    local p = 100 - (i / height * 100)
-    if percentFull > p then
-      monitor.setTextColor(colors.black)
-      monitor.setBackgroundColor(colors.red)
-      monitor.write("|")
-    elseif percentFull > math.floor(p) then
-      monitor.setTextColor(colors.red)
-      monitor.setBackgroundColor(colors.black)
-      monitor.write("=")
-    else
-      monitor.setTextColor(colors.black)
-      monitor.setBackgroundColor(colors.black)
-      monitor.write(" ")
+    monitor.setTextColor(colors.white)
+    monitor.setBackgroundColor(colors.black)
+  end
 
   -- turbo mode active
   if turboMode > maxTurboAntiLag then
@@ -233,8 +322,6 @@ while true do
   if rollingSize > rollingRange then
     rollingSize = rollingRange
   end
-  monitor.setTextColor(colors.white)
-  monitor.setBackgroundColor(colors.black)
 
   sleep(refreshDelay)
 end
