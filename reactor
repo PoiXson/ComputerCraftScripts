@@ -2,13 +2,13 @@
 local ReactorSide = "back"
 local MonitorName = "monitor_1"
 
-local targetRods = 50
-local rodStep    = 1
-local rodStepTurbo = 5
-local rollingRange = 100
-local refreshDelay = 3
+local targetRods      = 50
 local startRods       = 0
+local rodStep         = 1
+local rodStepTurbo    = 5
 local maxTurboAntiLag = 5
+local rollingRange    = 100
+local refreshDelay    = 3
 
 
 local reactor = peripheral.wrap(ReactorSide)
@@ -57,7 +57,7 @@ for i=1,5 do
 end
 
 
-local percentLast = nil
+local percentLast   = nil
 local rollingCharge = 0.01
 local rollingRod    = 0.01
 local rollingSize   = 0;
@@ -214,6 +214,15 @@ while true do
         term.write("         ~ ")
       end
     end
+
+    -- keep in range
+    if currentRod < 0 then
+      currentRod = 0
+    end
+    if currentRod > 100 then
+      currentRod = 100
+    end
+
     reactor.setAllControlRodLevels(100 - currentRod)
     -- rolling average math
     if rollingRod == 0 then
