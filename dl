@@ -1,0 +1,46 @@
+local url = "http://poixson.com/lua/"
+
+
+local args = { ... }
+local run = false
+local filename = ""
+if #args < 1 then
+  print("Filename argument is required!")
+  return
+end
+if args[1] == "run" then
+  if #args < 2 then
+    print("Filename argument is required!")
+    return
+  end
+  run = true
+  filename = args[2]
+else
+  filename = args[1]
+end
+
+print("Downloading file: "..filename)
+local text = ""
+local web = http.get(url..filename)
+if web ~= nil then
+  text = web:readAll()
+  web:close()
+end
+
+if text ~= "" then
+  local out = fs.open("/"..filename, "w")
+  out.write(text)
+  out.close()
+  print("Successful!")
+  os.sleep(2)
+else
+  print("Failed to download")
+  os.sleep(5)
+end
+
+if run then
+  print()
+  print()
+  shell.run("/"..filename)
+end
+
