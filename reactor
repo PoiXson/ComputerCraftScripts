@@ -98,7 +98,7 @@ while true do
   term.setCursorPos(20, 2)
 
   -- rf/fuel per tick
-  local rfTick = math.floor(reactor.getEnergyProducedLastTick() / 10) / 100
+  local rfTick = math.floor(reactor.getEnergyProducedLastTick() / 100) / 10
   local fuelTick = math.floor(reactor.getFuelConsumedLastTick() * 10) / 10
   local rfTickStr = "RF/Tick:   "..tostring(rfTick).."K   "
   local fuelTickStr = "Fuel/Tick: "..tostring(fuelTick).."   "
@@ -212,6 +212,7 @@ while true do
         end
         term.write("     EMPTY ")
       else
+        turboMode = 0
         if monitor ~= nil then
           monitor.write("         ~ ")
         end
