@@ -12,11 +12,42 @@ local refreshDelay = 3
 
 local reactor = peripheral.wrap(ReactorSide)
 reactor.setAllControlRodLevels(100 - startRods)
-
 local monitor = peripheral.wrap(MonitorName)
+
+
+-- delayed startup
 if monitor ~= nil then
   monitor.setTextScale(2)
+  monitor.clear()
+  monitor.setCursorPos(1, 1)
+  monitor.write("Inserting rods 100%")
+  monitor.setCursorPos(1, 2)
+  monitor.write("Starting reactor..")
 end
+term.clear()
+term.setCursorPos(1, 1)
+term.write("Inserting rods 100%")
+term.setCursorPos(1, 2)
+term.write("Starting reactor..")
+reactor.setAllControlRodLevels(100)
+for i=1,5 do
+  if monitor ~= nil then
+    monitor.setCursorPos(1, 3)
+    monitor.write(i)
+  end
+  term.setCursorPos(1, 3)
+  term.write("[")
+  for ii=1,5 do
+    if i >= ii then
+      term.write(".")
+    else
+      term.write(" ")
+    end
+  end
+  term.write("]")
+  os.sleep(1)
+end
+
 
 local percentLast = nil
 local rollingCharge = 0
