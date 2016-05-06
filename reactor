@@ -6,7 +6,7 @@ local targetRods      = 50
 local startRods       = 0
 local rodStep         = 1
 local rodStepTurbo    = 5
-local maxTurboAntiLag = 5
+local maxTurboLag     = 11
 local rollingRange    = 100
 local refreshDelay    = 3
 
@@ -315,8 +315,8 @@ while true do
   end
 
   -- turbo mode active
-  if turboMode > maxTurboAntiLag then
-    turboMode = maxTurboAntiLag
+  if turboMode > maxTurboLag then
+    turboMode = maxTurboLag
   end
   if turboMode > 0 then
     if monitor ~= nil then
