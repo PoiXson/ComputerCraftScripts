@@ -6,7 +6,7 @@ local targetRods      = 50
 local startRods       = 0
 local rodStep         = 1
 local rodStepTurbo    = 5
-local maxTurboLag     = 11
+local maxTurboLag     = 8
 local rollingRange    = 100
 local refreshDelay    = 3
 
