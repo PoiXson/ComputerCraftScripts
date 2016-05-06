@@ -3,11 +3,12 @@ local ReactorSide = "back"
 local MonitorName = "monitor_1"
 
 local targetRods = 50
-local startRods  = 1
 local rodStep    = 1
 local rodStepTurbo = 5
 local rollingRange = 100
 local refreshDelay = 3
+local startRods       = 0
+local maxTurboAntiLag = 5
 
 
 local reactor = peripheral.wrap(ReactorSide)
@@ -57,8 +58,10 @@ end
 
 
 local percentLast = nil
-local rollingCharge = 0
-local rollingRod = 0
+local rollingCharge = 0.01
+local rollingRod    = 0.01
+local rollingSize   = 0;
+local turboMode     = 0
 while true do
   monitor.clear()
 
@@ -140,6 +143,7 @@ while true do
       elseif percentFull <= 1 then
 --        currentRod = 5
         currentRod = currentRod + rodStepTurbo
+        turboMode = turboMode + 1
         monitor.write("     EMPTY ")
       else
         monitor.write("           ")
@@ -150,14 +154,20 @@ while true do
     if rollingRod == 0 then
       rollingRod = currentRod
     else
-      rollingRod = (rollingRod * (rollingRange - 1)) + currentRod
-      rollingRod = rollingRod / rollingRange
+      if rollingSize == 0 then
+        rollingRod = currentRod
+      end
+      rollingRod = (rollingRod * rollingSize) + currentRod
+      rollingRod = rollingRod / (rollingSize + 1)
     end
     if rollingCharge == 0 then
       rollingCharge = percentFull
     else
-      rollingCharge = (rollingCharge * (rollingRange - 1)) + percentFull
-      rollingCharge = rollingCharge / rollingRange
+      if rollingSize == 0 then
+        rollingCharge = percentFull
+      end
+      rollingCharge = (rollingCharge * rollingSize) + percentFull
+      rollingCharge = rollingCharge / (rollingSize + 1)
     end
   end
   monitor.write(tostring(percentFull).."%   ")
@@ -205,7 +215,23 @@ while true do
       monitor.setTextColor(colors.black)
       monitor.setBackgroundColor(colors.black)
       monitor.write(" ")
+
+  -- turbo mode active
+  if turboMode > maxTurboAntiLag then
+    turboMode = maxTurboAntiLag
+  end
+  if turboMode > 0 then
+    if monitor ~= nil then
+      monitor.setCursorPos(25, 1)
+      monitor.write("Turbo: "..tostring(turboMode))
     end
+  end
+  term.setCursorPos(25, 1)
+  term.write("Turbo: "..tostring(turboMode))
+
+  rollingSize = rollingSize + 1
+  if rollingSize > rollingRange then
+    rollingSize = rollingRange
   end
   monitor.setTextColor(colors.white)
   monitor.setBackgroundColor(colors.black)
