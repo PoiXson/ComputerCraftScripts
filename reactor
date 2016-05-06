@@ -99,7 +99,7 @@ while true do
 
   -- rf/fuel per tick
   local rfTick = math.floor(reactor.getEnergyProducedLastTick() / 10) / 100
-  local fuelTick = math.floor(reactor.getFuelConsumedLastTick() * 100) / 100
+  local fuelTick = math.floor(reactor.getFuelConsumedLastTick() * 10) / 10
   local rfTickStr = "RF/Tick:   "..tostring(rfTick).."K   "
   local fuelTickStr = "Fuel/Tick: "..tostring(fuelTick).."   "
   if monitor ~= nil then
@@ -114,9 +114,9 @@ while true do
   term.write(fuelTickStr)
 
   -- energy/rods
-  local energy         = reactor.getEnergyStored()
-  local percentFull    = math.floor(reactor.getEnergyStored() / 10000000 * 10000) / 100
-  local energyStr      = "Energy:    "..tostring(energy).."   "
+  local energy         = reactor.getEnergyStored() / 1000
+  local percentFull    = math.floor(reactor.getEnergyStored() / 10000000 * 1000) / 10
+  local energyStr      = "Energy:    "..tostring(math.floor(energy)).."k   "
   local currentRod     = 100 - reactor.getControlRodLevel(1)
   if monitor ~= nil then
     monitor.setCursorPos(1, 5)
@@ -247,8 +247,8 @@ while true do
 
   -- energy/rods percent
   percentLast = percentFull
-  percentFullAvg    = math.floor(rollingCharge * 100) / 100
-  percentRodsAvg    = math.floor(rollingRod * 100) / 100
+  percentFullAvg    = math.floor(rollingCharge * 10) / 10
+  percentRodsAvg    = math.floor(rollingRod    * 10) / 10
   if percentFull ~= nil then
     percentFullStr    = tostring(percentFull).."%   "
   else
