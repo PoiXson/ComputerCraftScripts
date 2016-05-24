@@ -9,337 +9,509 @@ os.loadAPI("/pxn")
 
 
 
-local ReactorSide = "back"
-local MonitorName = "monitor_1"
+local StartupDelay  = 5
+local UpdateDelay   = 3
 
-local targetRods      = 50
-local startRods       = 0
-local rodStep         = 1
-local rodStepTurbo    = 5
-local maxTurboLag     = 8
-local rollingRange    = 100
-local refreshDelay    = 3
+-- rod config
+local RodStep       = 1
+local RodStepTurbo  = 5
+local MaxTurboLag   = 8
 
+local RodStart      = 0
+local TargetPercent = 50
+local RodMax        = 50
 
-local reactor = peripheral.wrap(ReactorSide)
-reactor.setAllControlRodLevels(100 - startRods)
-local monitor = peripheral.wrap(MonitorName)
+local rollingRange  = 50
 
 
--- write startup file
-local h = fs.open("/startup", "w")
-h.writeLine("shell.run(\"dl run reactor\")")
-h.flush()
-h.close()
+
+-- ----------------------------------------
 
 
--- delayed startup
-if monitor ~= nil then
-  monitor.setTextScale(2)
-  monitor.clear()
-  monitor.setCursorPos(2, 2)
-  monitor.write("Inserting rods 100%")
-  monitor.setCursorPos(2, 3)
-  monitor.write("Starting reactor..")
-end
-term.clear()
-term.setCursorPos(2, 2)
-term.write("Inserting rods 100%")
-term.setCursorPos(2, 3)
-term.write("Starting reactor..")
-reactor.setAllControlRodLevels(100)
-for i=1,5 do
-  if monitor ~= nil then
-    monitor.setCursorPos(2, 5)
-    monitor.write(i)
-  end
-  term.setCursorPos(2, 5)
-  term.write("[")
-  for ii=1,5 do
-    if i >= ii then
-      term.write(".")
+
+pxn.clear()
+pxn.pos()
+
+-- create startup file
+pxn.CreateStartupFile("reactor")
+
+local reactor = pxn.DetectReactor()
+
+local displayingHelp = false
+
+
+
+-- ----------------------------------------
+-- help
+
+
+
+local function DisplayHelp()
+    local sizeX, sizeY = term.getSize()
+    local margin = 3
+    local width = (sizeX - (margin * 2)) + 2
+    term.setBackgroundColor(colors.gray)
+    pxn.pos(margin, margin)
+    pxn.println(pxn.strRepeat(width, "="))
+    pxn.println("| "..pxn.strRepeat(width - 4).." |")
+    if displayingHelp then
+
+        pxn.println("| "..pxn.padRight("q/a - Percent charged target up/down", width - 4).." |")
+        pxn.println("| "..pxn.padRight("w/s - Max control rods up/down",       width - 4).." |")
+        pxn.println("| "..pxn.padRight("e/d - Seconds per update up/down",     width - 4).." |")
+        pxn.println("| "..pxn.strRepeat(width - 4).." |")
+        pxn.println("| "..pxn.padRight("  h - Toggle this help screen",        width - 4).." |")
+        pxn.println("| "..pxn.padRight("  t - Quit this program",              width - 4).." |")
+
     else
-      term.write(" ")
+
+        for i=1,6 do
+            pxn.println("| "..pxn.strRepeat(width - 4).." |")
+        end
+
     end
-  end
-  term.write("]")
-  os.sleep(1)
+    pxn.println("| "..pxn.strRepeat(width - 4).." |")
+    pxn.println(pxn.strRepeat(width, "="))
+end
+
+local function ToggleHelp()
+    displayingHelp = not displayingHelp
+    DisplayHelp()
 end
 
 
-local percentLast   = nil
-local rollingCharge = 0
-local rollingRod    = 0
-local rollingSize   = 0;
-local turboMode     = 0
-while true do
-  if monitor ~= nil then
-    monitor.clear()
-  end
-  term.clear()
 
-  -- monitor state
-  term.setCursorPos(3, 10)
-  if monitor ~= nil then
-    term.write("Monitor Connected")
-  else
-    term.write("No Monitor")
-  end
+-- ----------------------------------------
+-- thread loops
 
-  -- fuel/case temp
-  local fuelTemp = math.floor(reactor.getFuelTemperature()   * 10) / 10
-  local caseTemp = math.floor(reactor.getCasingTemperature() * 10) / 10
-  local tempDiff = math.floor( (reactor.getFuelTemperature() - reactor.getCasingTemperature()) * 10) / 10
-  local fuelTempStr = "Fuel Temp: "..tostring(fuelTemp).."   "
-  local caseTempStr = "Case Temp: "..tostring(caseTemp).."   "
-  local tempDiffStr = tostring(tempDiff).."   "
-  if monitor ~= nil then
-    monitor.setCursorPos(1, 1)
-    monitor.write(fuelTempStr)
-    monitor.setCursorPos(1, 2)
-    monitor.write(caseTempStr)
-    monitor.setCursorPos(20, 2)
-    monitor.write(tempDiffStr)
-  end
-  term.setCursorPos(1, 1)
-  term.write(fuelTempStr)
-  term.setCursorPos(1, 2)
-  term.write(caseTempStr)
-  term.setCursorPos(20, 2)
 
-  -- rf/fuel per tick
-  local rfTick = math.floor(reactor.getEnergyProducedLastTick() / 100) / 10
-  local fuelTick = math.floor(reactor.getFuelConsumedLastTick() * 10) / 10
-  local rfTickStr = "RF/Tick:   "..tostring(rfTick).."K   "
-  local fuelTickStr = "Fuel/Tick: "..tostring(fuelTick).."   "
-  if monitor ~= nil then
-    monitor.setCursorPos(1, 3)
-    monitor.write(rfTickStr)
-    monitor.setCursorPos(1, 4)
-    monitor.write(fuelTickStr)
-  end
-  term.setCursorPos(1, 3)
-  term.write(rfTickStr)
-  term.setCursorPos(1, 4)
-  term.write(fuelTickStr)
 
-  -- energy/rods
-  local energy         = reactor.getEnergyStored() / 1000
-  local percentFull    = math.floor(reactor.getEnergyStored() / 10000000 * 1000) / 10
-  local energyStr      = "Energy:    "..tostring(math.floor(energy)).."k   "
-  local currentRod     = 100 - reactor.getControlRodLevel(1)
-  if monitor ~= nil then
-    monitor.setCursorPos(1, 5)
-    monitor.write(energyStr)
-    monitor.setCursorPos(1, 6)
-  end
-  term.setCursorPos(1, 5)
-  term.write(energyStr)
-  term.setCursorPos(1, 6)
-
-  -- first cycle
-  if percentLast == nil then
-    if monitor ~= nil then
-      monitor.write("           ")
-    end
-    term.write("           ")
-  else
-
-    -- ^  charge is rising
-    if percentFull > percentLast then
-      if turboMode > 0 then
-        currentRod = currentRod - rodStepTurbo
-        turboMode = turboMode - 1
-        if monitor ~= nil then
-          monitor.write("       ^ ^ ")
-        end
-        term.write("       ^ ^ ")
-      else
-        if percentFull >= targetRods then
-          -- turbo break if more than 33% beyond target
-          if percentFull >= (targetRods / 3) + targetRods then
-            currentRod = currentRod - rodStepTurbo
-            if monitor ~= nil then
-              monitor.write("       ^^^ ")
+local function KeyPressListener()
+    while true do
+        local event, param = os.pullEventRaw()
+        if event == "terminate" then
+            pxn.shutdown()
+            return
+        elseif event == "key" then
+            local char = keys.getName(param)
+            if char == "t" then
+                pxn.stopping = true
+                reactor.setAllControlRodLevels(100)
+                pxn.shutdown()
+                break
+            -- toggle help
+            elseif char == "h" then
+                ToggleHelp()
+            -- q  target charge up
+            elseif char == "q" then
+                TargetPercent = TargetPercent + 1
+                if TargetPercent > 100 then TargetPercent = 100 end
+                pxn.pos(12, 9)
+                pxn.print(">"..pxn.padLeft(tostring(TargetPercent), 3).."%<")
+            -- a  target charge down
+            elseif char == "a" then
+                TargetPercent = TargetPercent - 1
+                if TargetPercent < 0 then TargetPercent = 0 end
+                pxn.pos(12, 9)
+                pxn.print(">"..pxn.padLeft(tostring(TargetPercent), 3).."%<")
+            -- w  max rods up
+            elseif char == "w" then
+                RodMax = RodMax + 1
+                if RodMax > 100 then RodMax = 100 end
+                pxn.pos(12, 10)
+                pxn.print(">"..pxn.padLeft(tostring(RodMax), 3).."%<")
+            -- s  max rods down
+            elseif char == "s" then
+                RodMax = RodMax - 1
+                if RodMax < 0 then RodMax = 0 end
+                pxn.pos(12, 10)
+                pxn.print(">"..pxn.padLeft(tostring(RodMax), 3).."%<")
+            -- e  update delay up
+            elseif char == "e" then
+                UpdateDelay = UpdateDelay + 0.5
+                if UpdateDelay > 20.0 then UpdateDelay = 20.0 end
+                pxn.pos(1, 1)
+                pxn.print(" Refresh ["..tostring(UpdateDelay).."] seconds   ")
+            -- d  update delay down
+            elseif char == "d" then
+                UpdateDelay = UpdateDelay - 0.5
+                if UpdateDelay < 0.5 then UpdateDelay = 0.5 end
+                pxn.pos(1, 1)
+                pxn.print(" Refresh ["..tostring(UpdateDelay).."] seconds   ")
             end
-            term.write("       ^^^ ")
-          -- normal break
-          else
-            currentRod = currentRod - rodStep
-            if monitor ~= nil then
-              monitor.write("         ^ ")
+        end
+    end
+end
+
+
+
+local function DisplayGraphs(rodsCurrent, energyPercent)
+    local sizeX, sizeY = term.getSize()
+    -- rods graph
+    pxn.DrawBarGraphMon(
+        term,
+        rodsCurrent,
+        100,
+        sizeX - 7,
+        colors.yellow
+    )
+    -- energy graph
+    pxn.DrawBarGraphMon(
+        term,
+        energyPercent,
+        100,
+        sizeX - 3,
+        colors.red
+    )
+end
+
+
+
+local function StartupFunc()
+    pxn.clear()
+    pxn.pos(nil, 2) pxn.center("Inserting rods 100%")
+    pxn.pos(nil, 3) pxn.center("Ready for startup..")
+    pxn.pos(nil, 5) pxn.center("(press [t] to cancel startup)")
+    -- reactor off
+    reactor.setAllControlRodLevels(100)
+    -- progress bar
+    for i=1,StartupDelay do
+        if pxn.stopping then
+            break
+        end
+        local str = ""
+        for ii=1,StartupDelay do
+            str = str..( i >= ii and ">" or "-" )
+        end
+        pxn.pos(nil, 7)
+        pxn.center("["..str.."]")
+        os.sleep(1)
+    end
+    pxn.clear()
+    pxn.pos(1, 1)
+end
+
+
+
+local function Main()
+
+    local MaxEnergyStored = 10000000
+
+    local tempCase = nil
+    local tempFuel = nil
+    local tempDiff = nil
+
+    local rfTick  = nil
+    local fuelSec = nil
+    local rfIngot = nil
+
+    local energyCurrent = nil
+    local energyLast    = nil
+    local energyPercent = nil
+    local rodsCurrent   = nil
+
+--  local rollingCharge = 0
+--  local rollingRod    = 0
+--  local rollingSize   = 0;
+
+
+    local state = nil
+    local turbo = 0
+
+    -- start state
+    if RodStart > 100 then RodStart = 100 end
+    if RodStart < 0   then RodStart = 0   end
+    reactor.setAllControlRodLevels(100 - RodStart)
+
+    while not pxn.stopping do
+        pxn.clear()
+        local sizeX, sizeY = term.getSize()
+        pxn.pos(1, sizeY) term.write(" Press h for help ")
+        pxn.pos(2, 2)
+
+        -- case/fuel temp
+        tempCase = pxn.floor(
+            reactor.getCasingTemperature(),
+            1
+        )
+        tempFuel = pxn.floor(
+            reactor.getFuelTemperature(),
+            1
+        )
+        tempDiff = pxn.floor(
+            reactor.getFuelTemperature() - reactor.getCasingTemperature(),
+            1
+        )
+        pxn.pos(19)
+        pxn.print(
+            "   "..
+            pxn.padLeft(pxn.padZeros(tempDiff, 1), 4)
+            .."c "
+        )
+        pxn.pos(2)
+        pxn.println(
+            "Case Temp: "..
+            pxn.padLeft(pxn.padZeros(tempCase, 1), 6)
+            .."c "
+        )
+        pxn.println(
+            "Fuel Temp: "..
+            pxn.padLeft(pxn.padZeros(tempFuel, 1), 6)
+            .."c "
+        )
+
+        pxn.println()
+
+        -- rf/fuel per tick
+        rfTick = pxn.floor(
+            reactor.getEnergyProducedLastTick() / 1000.0,
+            1
+        )
+        fuelSec = pxn.floor(
+            (reactor.getFuelConsumedLastTick() * 20.0) / 1000.0,
+            3
+        )
+        if fuelSec > 0.0 then
+            rfIngot = pxn.floor(
+                rfTick / fuelSec,
+                1
+            )
+        else
+            rfIngot = 0.0
+        end
+        pxn.println(
+            "  RF/Tick: "..
+            pxn.padLeft(pxn.padZeros(tostring(rfTick), 1), 6)
+            .."k "
+        )
+        pxn.println(
+            "Ingot/Sec: "..
+            pxn.padLeft(pxn.padZeros(fuelSec, 3, true), 6)
+            .." "
+        )
+        pxn.println(
+            " RF/Ingot: "..
+            pxn.padLeft(pxn.padZeros(rfIngot, 1), 6)
+            .."k "
+        )
+
+        pxn.println()
+
+        -- energy
+        energyCurrent = reactor.getEnergyStored() / 1000.0
+        energyPercent = pxn.floor(
+            (reactor.getEnergyStored() / MaxEnergyStored) * 100.0,
+            1
+        )
+        pxn.println(
+            "   Energy: "..
+            pxn.padLeft(math.floor(energyPercent), 3)
+            .."%  "..
+            math.floor(energyCurrent)
+            .."k "
+        )
+
+
+
+        -- find state
+        rodsCurrent = 100 - reactor.getControlRodLevel(1)
+
+        -- first cycle
+        if state == nil then
+            state = "   "
+
+        -- fully charged
+        elseif energyPercent >= 99.0 then
+            rodsCurrent = 0
+            state = "x-x"
+
+        -- charge empty
+        elseif energyPercent <= 1 then
+            if rodsCurrent < RodMax then
+                rodsCurrent = rodsCurrent + RodStepTurbo
+                turbo = turbo + 1
+                state = "+E+"
+            else
+                state = " E "
             end
-            term.write("         ^ ")
-          end
+
+        -- above target
+        elseif energyPercent > TargetPercent then
+
+            -- ||  early turbo break
+            if turbo > 0 then
+                if rodsCurrent > 0 then
+                    rodsCurrent = rodsCurrent - RodStepTurbo
+                    state = "^-^"
+                else
+                    state = "^ ^"
+                end
+                turbo = turbo - 1
+
+            -- ^  above target and rising
+            elseif energyCurrent >= energyLast then
+
+                -- turbo break (if more than 30% above target)
+                if energyPercent >= (TargetPercent * 1.3) then
+                    if rodsCurrent > 0 then
+                        rodsCurrent = rodsCurrent - RodStepTurbo
+                        state = "-^-"
+                    else
+                        state = " ^ "
+                    end
+                    turbo = turbo - 1
+
+                -- normal break
+                else
+                    if rodsCurrent > 0 then
+                        rodsCurrent = rodsCurrent - RodStep
+                        state = "-^ "
+                    else
+                        state = " ^ "
+                    end
+                end
+
+            -- v  above target and dropping
+            else
+                state = " v "
+            end
+
+        -- below target
+        elseif energyPercent < TargetPercent then
+
+            -- prevent over-shoot (when recovering from dead battery)
+            if energyLast == 0 and turbo > 0 then
+                rodsCurrent = math.floor(rodsCurrent / 2.0)
+                turbo = math.floor(turbo / 2.0)
+                state = "---"
+            -- below target and rising
+            elseif energyCurrent > energyLast then
+                if turbo > 0 then
+                    state = "^ ^"
+                else
+                    state = " ^ "
+                end
+
+            -- below target and dropping
+            else
+
+                -- v  turbo boost (if below 50% of target)
+                if energyPercent <= (TargetPercent * 0.5) then
+                    if rodsCurrent < RodMax then
+                        rodsCurrent = rodsCurrent + RodStepTurbo
+                        turbo = turbo + 1
+                        state = "+v+"
+                    else
+                        state = " v "
+                    end
+
+                -- normal boost
+                else
+                    if rodsCurrent < RodMax then
+                        rodsCurrent = rodsCurrent + RodStep
+                        state = "+v "
+                    else
+                        state = " v "
+                    end
+
+                end
+
+            end
+
+        -- target stable
         else
-          if monitor ~= nil then
-            monitor.write("         ^ ")
-          end
-          term.write("         ^ ")
+            turbo = 0
+            state = " ~ "
+
         end
-      end
 
-    -- v  charge is dropping
-    elseif percentFull < percentLast then
-      if percentFull < targetRods then
-        -- turbo boost if less than half of target
-        if percentFull <= (targetRods / 2) then
-          currentRod = currentRod + rodStepTurbo
-          turboMode = turboMode + 1
-          if monitor ~= nil then
-            monitor.write("       vvv ")
-          end
-          term.write("       vvv ")
-        -- normal boost
-        else
-          currentRod = currentRod + rodStep
-          if monitor ~= nil then
-            monitor.write("         v ")
-          end
-          term.write("         v ")
+
+
+        -- keep rods in range
+        if rodsCurrent < 0 then
+            rodsCurrent = 0
         end
-      else
-        if monitor ~= nil then
-          monitor.write("         v ")
+        if rodsCurrent > RodMax then
+            rodsCurrent = RodMax
         end
-        term.write("         v ")
-      end
-
-    -- ~  charge is stable
-    else
-      if percentFull >= 99 then
-        currentRod = 0
-        if monitor ~= nil then
-          monitor.write("      FULL ")
+        -- reset turbo
+        if rodsCurrent == 0 then
+            turbo = 0
         end
-        term.write("      FULL ")
-      elseif percentFull <= 1 then
-        --currentRod = 5
-        currentRod = currentRod + rodStepTurbo
-        turboMode = turboMode + 1
-        if monitor ~= nil then
-          monitor.write("     EMPTY ")
+        -- keep turbo in range
+        if turbo < 0 then
+            turbo = 0
         end
-        term.write("     EMPTY ")
-      else
-        turboMode = 0
-        if monitor ~= nil then
-          monitor.write("         ~ ")
+        if turbo > MaxTurboLag then
+            turbo = MaxTurboLag
         end
-        term.write("         ~ ")
-      end
-    end
 
-    -- keep in range
-    if currentRod <= 0 then
-      currentRod = 0
-    end
-    if currentRod >= 100 then
-      currentRod = 100
-    end
 
-    reactor.setAllControlRodLevels(100 - currentRod)
-    -- rod rolling average
-    if rollingSize == 1 then
-      rollingRod = currentRod
-    end
-    rollingRod = (rollingRod * rollingSize) + currentRod
-    rollingRod = rollingRod / (rollingSize + 1)
-    -- charge rolling average
-    if rollingSize == 1 then
-      rollingCharge = percentFull
-    end
-    rollingCharge = (rollingCharge * rollingSize) + percentFull
-    rollingCharge = rollingCharge / (rollingSize + 1)
-  end
-  percentLast = percentFull
 
-  -- energy/rods percent
-  percentFullAvg    = math.floor(rollingCharge * 10) / 10
-  percentRodsAvg    = math.floor(rollingRod    * 10) / 10
-  if percentFull ~= nil then
-    percentFullStr    = tostring(percentFull).."%   "
-  else
-    percentFullStr    = "0%   "
-  end
-  percentFullAvgStr = tostring(percentFullAvg).."% avg  "
-  percentRodsStr    = "Control:   "..tostring(currentRod).."%   "
-  percentRodsAvgStr = tostring(percentRodsAvg).."% avg  "
-  if monitor ~= nil then
-    monitor.write(percentFullStr)
-    monitor.setCursorPos(20, 6)
-    monitor.write(percentFullAvgStr)
-    monitor.setCursorPos(1, 7)
-    monitor.write(percentRodsStr)
-    monitor.setCursorPos(20, 7)
-    monitor.write(percentRodsAvgStr)
-  end
-  term.write(percentFullStr)
-  term.setCursorPos(20, 6)
-  term.write(percentFullAvgStr)
-  term.setCursorPos(1, 7)
-  term.write(percentRodsStr)
-  term.setCursorPos(20, 7)
-  term.write(percentRodsAvgStr)
-  if monitor ~= nil then
-    monitor.setTextColor(colors.black)
-    local width, height = monitor.getSize()
-    for i = 0, height do
-      -- control rods
-      monitor.setCursorPos(width - 3, i)
-      local p = 100 - (i / height * 100)
-      if currentRod > p then
-        monitor.setTextColor(colors.black)
-        monitor.setBackgroundColor(colors.yellow)
-        monitor.write("|")
-      elseif currentRod > math.floor(p) then
-        monitor.setTextColor(colors.yellow)
-        monitor.setBackgroundColor(colors.black)
-        monitor.write("=")
-      else
-        monitor.setTextColor(colors.black)
-        monitor.setBackgroundColor(colors.black)
-        monitor.write(" ")
-      end
-      -- stored energy
-      monitor.setCursorPos(width - 1, i)
-      local p = 100 - (i / height * 100)
-      if percentFull > p then
-        monitor.setTextColor(colors.black)
-        monitor.setBackgroundColor(colors.red)
-        monitor.write("|")
-      elseif percentFull > math.floor(p) then
-        monitor.setTextColor(colors.red)
-        monitor.setBackgroundColor(colors.black)
-        monitor.write("=")
-      else
-        monitor.setTextColor(colors.black)
-        monitor.setBackgroundColor(colors.black)
-        monitor.write(" ")
-      end
+        -- set rods
+        reactor.setAllControlRodLevels(100 - rodsCurrent)
+        energyLast = energyCurrent
+
+
+
+        -- finish display
+
+        -- control rods
+        pxn.print(
+            "  Control: "..
+            pxn.padLeft(tostring(rodsCurrent), 3)
+            .."% "
+        )
+        pxn.pos(18)
+        pxn.println(" ["..state.."] ")
+        pxn.pos(2)
+
+        if turbo > 0 then
+            pxn.println(
+                "    Turbo: "..
+                pxn.padLeft(tostring(turbo), 3)
+                .." "
+            )
+        end
+
+
+
+
+
+
+
+
+
+        DisplayGraphs(rodsCurrent, energyPercent)
+
+        if displayingHelp then
+            DisplayHelp()
+        end
+
+        os.sleep(UpdateDelay)
     end
-    monitor.setTextColor(colors.white)
-    monitor.setBackgroundColor(colors.black)
-  end
+end
 
-  -- turbo mode active
-  if turboMode > maxTurboLag then
-    turboMode = maxTurboLag
-  end
-  if turboMode > 0 then
-    if monitor ~= nil then
-      monitor.setCursorPos(3, 9)
-      monitor.write("Turbo: "..tostring(turboMode))
-    end
-  end
-  term.setCursorPos(3, 9)
-  term.write("Turbo: "..tostring(turboMode))
 
-  rollingSize = rollingSize + 1
-  if rollingSize > rollingRange then
-    rollingSize = rollingRange
-  end
 
-  sleep(refreshDelay)
+-- ----------------------------------------
+-- run threads
+
+
+
+if not pxn.stopping then
+    -- startup loop
+    parallel.waitForAny(
+        KeyPressListener,
+        StartupFunc
+    )
+end
+
+-- active loop
+if not pxn.stopping then
+    parallel.waitForAny(
+        KeyPressListener,
+        Main
+    )
 end
 
