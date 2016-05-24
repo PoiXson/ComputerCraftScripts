@@ -1,3 +1,13 @@
+-- ----------------------------------------
+-- PoiXson - Reactor Controller
+-- license GPL-3
+-- author lorenzo at poixson.com
+-- link http://poixson.com/
+-- ----------------------------------------
+
+os.loadAPI("/pxn")
+
+
 
 local ReactorSide = "back"
 local MonitorName = "monitor_1"
